@@ -118,136 +118,140 @@ export default function Settings({ settings, onChange, onWipe }: {
     <>
       <div className="page-heading"><h1>Settings</h1></div>
       <div className="settings-grid">
-        <Card className="panel settings-panel personalize-card">
-          <Collapsible>
-            <h2>
-              <CollapsibleTrigger asChild>
-                <Button variant="ghost" className="personalize-trigger">
-                  <SettingsTitle icon={Palette}>Personalize</SettingsTitle>
-                  <span className="personalize-swatch" style={emotionStyle(settings.color)} aria-hidden />
-                  <ChevronDown aria-hidden className="personalize-chevron" />
-                </Button>
-              </CollapsibleTrigger>
-            </h2>
-            <CollapsibleContent>
-              <div className="personalize-fields">
-                <div className="field">
-                  <Label htmlFor="name">Your name</Label>
-                  <Input id="name" ref={nameInput} autoComplete="given-name" placeholder="Name" defaultValue={settings.name} maxLength={48}
-                    onChange={(event) => void patch({ name: event.target.value })} />
-                </div>
-                <div className="field">
-                  <Label htmlFor="theme-color">Theme color</Label>
-                  <div className="theme-colors">
-                    {swatches.map(({ name, color }) => (
-                      <Button key={color} variant="ghost" size="icon-lg" className="color-swatch" style={emotionStyle(color)}
-                        aria-label={name} title={name} aria-pressed={settings.color === color} onClick={() => void patch({ color })}>
-                        {settings.color === color && <Check />}
-                      </Button>
-                    ))}
-                    <Input id="theme-color" type="color" value={settings.color} onChange={(event) => void patch({ color: event.target.value })} />
+        <div className="settings-column">
+          <Card className="panel settings-panel personalize-card">
+            <Collapsible>
+              <h2>
+                <CollapsibleTrigger asChild>
+                  <Button variant="ghost" className="personalize-trigger">
+                    <SettingsTitle icon={Palette}>Personalize</SettingsTitle>
+                    <span className="personalize-swatch" style={emotionStyle(settings.color)} aria-hidden />
+                    <ChevronDown aria-hidden className="personalize-chevron" />
+                  </Button>
+                </CollapsibleTrigger>
+              </h2>
+              <CollapsibleContent>
+                <div className="personalize-fields">
+                  <div className="field">
+                    <Label htmlFor="name">Your name</Label>
+                    <Input id="name" ref={nameInput} autoComplete="given-name" placeholder="Name" defaultValue={settings.name} maxLength={48}
+                      onChange={(event) => void patch({ name: event.target.value })} />
+                  </div>
+                  <div className="field">
+                    <Label htmlFor="theme-color">Theme color</Label>
+                    <div className="theme-colors">
+                      {swatches.map(({ name, color }) => (
+                        <Button key={color} variant="ghost" size="icon-lg" className="color-swatch" style={emotionStyle(color)}
+                          aria-label={name} title={name} aria-pressed={settings.color === color} onClick={() => void patch({ color })}>
+                          {settings.color === color && <Check />}
+                        </Button>
+                      ))}
+                      <Input id="theme-color" type="color" value={settings.color} onChange={(event) => void patch({ color: event.target.value })} />
+                    </div>
+                  </div>
+                  <div className="setting-row personalize-dark">
+                    <Label htmlFor="dark-mode">Dark theme</Label>
+                    <Switch id="dark-mode" checked={settings.darkMode ?? false} onCheckedChange={(darkMode) => void patch({ darkMode })} />
                   </div>
                 </div>
-                <div className="setting-row personalize-dark">
-                  <Label htmlFor="dark-mode">Dark theme</Label>
-                  <Switch id="dark-mode" checked={settings.darkMode ?? false} onCheckedChange={(darkMode) => void patch({ darkMode })} />
+              </CollapsibleContent>
+            </Collapsible>
+          </Card>
+          <Card className="panel settings-panel journal-layout-panel">
+            <h2><SettingsTitle icon={LayoutGrid}>Journal layout</SettingsTitle></h2>
+            <p>Show or hide sections. Drag the handles to reorder them.</p>
+            <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={({ active, over }) => {
+              if (!over || active.id === over.id) return
+              void onChange((current) => {
+                const from = current.layout.findIndex(({ id }) => id === active.id)
+                const to = current.layout.findIndex(({ id }) => id === over.id)
+                return { ...current, layout: arrayMove(current.layout, from, to) }
+              })
+            }}>
+              <SortableContext items={settings.layout.map(({ id }) => id)} strategy={verticalListSortingStrategy}>
+                <ul className="layout-options">
+                  {settings.layout.map((section) => <SortableSection key={section.id} {...section} onVisible={(visible) =>
+                    void onChange((current) => ({
+                      ...current,
+                      layout: current.layout.map((item) => item.id === section.id ? { ...item, visible } : item),
+                    }))} />)}
+                </ul>
+              </SortableContext>
+            </DndContext>
+          </Card>
+          <Card className="panel settings-panel">
+            <h2><SettingsTitle icon={CalendarDays}>Calendar</SettingsTitle></h2>
+            <div className="field">
+              <Label htmlFor="week-start">First day of the week</Label>
+              <NativeSelect id="week-start" value={settings.weekStartsOn} onChange={(event) => void patch({ weekStartsOn: Number(event.target.value) as Preferences['weekStartsOn'] })}>
+                {weekdays.map((day, index) => <option value={index} key={day}>{day}</option>)}
+              </NativeSelect>
+            </div>
+          </Card>
+        </div>
+        <div className="settings-column">
+          <Card className="panel settings-panel">
+            <h2><SettingsTitle icon={Bell}>Reminders</SettingsTitle></h2>
+            <div className="setting-row">
+              <Label htmlFor="reminder-enabled">Daily check-in reminder</Label>
+              <Switch id="reminder-enabled" checked={settings.reminder.enabled} onCheckedChange={(enabled) => void toggleReminders(enabled)} />
+            </div>
+            <p>Reminders run while Feel is open. Feel shows an in-app reminder when system notifications are unavailable.</p>
+            {settings.reminder.enabled && (
+              <div className="reminder-fields">
+                <div className="field">
+                  <Label htmlFor="reminder-time">Time</Label>
+                  <Input id="reminder-time" type="time" value={settings.reminder.time}
+                    onChange={(event) => { if (event.target.value) void patchReminder({ time: event.target.value }) }} />
+                </div>
+                <div className="field">
+                  <Label htmlFor="reminder-message">Message</Label>
+                  <Input id="reminder-message" ref={messageInput} defaultValue={settings.reminder.message} maxLength={120}
+                    onChange={(event) => void patchReminder({ message: event.target.value })}
+                    placeholder={defaultJournal.settings.reminder.message} />
                 </div>
               </div>
-            </CollapsibleContent>
-          </Collapsible>
-        </Card>
-        <Card className="panel settings-panel journal-layout-panel">
-          <h2><SettingsTitle icon={LayoutGrid}>Journal layout</SettingsTitle></h2>
-          <p>Show or hide sections. Drag the handles to reorder them.</p>
-          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={({ active, over }) => {
-            if (!over || active.id === over.id) return
-            void onChange((current) => {
-              const from = current.layout.findIndex(({ id }) => id === active.id)
-              const to = current.layout.findIndex(({ id }) => id === over.id)
-              return { ...current, layout: arrayMove(current.layout, from, to) }
-            })
-          }}>
-            <SortableContext items={settings.layout.map(({ id }) => id)} strategy={verticalListSortingStrategy}>
-              <ul className="layout-options">
-                {settings.layout.map((section) => <SortableSection key={section.id} {...section} onVisible={(visible) =>
-                  void onChange((current) => ({
-                    ...current,
-                    layout: current.layout.map((item) => item.id === section.id ? { ...item, visible } : item),
-                  }))} />)}
-              </ul>
-            </SortableContext>
-          </DndContext>
-        </Card>
-        <Card className="panel settings-panel">
-          <h2><SettingsTitle icon={CalendarDays}>Calendar</SettingsTitle></h2>
-          <div className="field">
-            <Label htmlFor="week-start">First day of the week</Label>
-            <NativeSelect id="week-start" value={settings.weekStartsOn} onChange={(event) => void patch({ weekStartsOn: Number(event.target.value) as Preferences['weekStartsOn'] })}>
-              {weekdays.map((day, index) => <option value={index} key={day}>{day}</option>)}
-            </NativeSelect>
-          </div>
-        </Card>
-        <Card className="panel settings-panel">
-          <h2><SettingsTitle icon={Bell}>Reminders</SettingsTitle></h2>
-          <div className="setting-row">
-            <Label htmlFor="reminder-enabled">Daily check-in reminder</Label>
-            <Switch id="reminder-enabled" checked={settings.reminder.enabled} onCheckedChange={(enabled) => void toggleReminders(enabled)} />
-          </div>
-          <p>Reminders run while Feel is open. Feel shows an in-app reminder when system notifications are unavailable.</p>
-          {settings.reminder.enabled && (
-            <div className="reminder-fields">
-              <div className="field">
-                <Label htmlFor="reminder-time">Time</Label>
-                <Input id="reminder-time" type="time" value={settings.reminder.time}
-                  onChange={(event) => { if (event.target.value) void patchReminder({ time: event.target.value }) }} />
-              </div>
-              <div className="field">
-                <Label htmlFor="reminder-message">Message</Label>
-                <Input id="reminder-message" ref={messageInput} defaultValue={settings.reminder.message} maxLength={120}
-                  onChange={(event) => void patchReminder({ message: event.target.value })}
-                  placeholder={defaultJournal.settings.reminder.message} />
-              </div>
-            </div>
-          )}
-        </Card>
-        <Card className="panel settings-panel">
-          <h2><SettingsTitle icon={Shield}>Your data</SettingsTitle></h2>
-          <p>Download your check-ins, saved emotions, and settings as JSON.</p>
-          <Button variant="outline" className="setting-action" onClick={() => void download()}><Download /> Export data</Button>
-          {exportError && <p role="alert">Couldn’t export your data. Try again.</p>}
-        </Card>
-        <Card className="panel settings-panel danger-panel">
-          <h2><SettingsTitle icon={Trash2}>Danger zone</SettingsTitle></h2>
-          <p>Permanently delete your check-ins, saved emotions, and settings from this device.</p>
-          <AlertDialog open={wipeOpen} onOpenChange={(open) => {
-            if (deleting) return
-            if (open) {
-              setConfirmation('')
-              setWipeError(false)
-            }
-            setWipeOpen(open)
-          }}>
-            <AlertDialogTrigger asChild><Button variant="destructive" className="setting-action">Delete all data</Button></AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Delete all data?</AlertDialogTitle>
-                <AlertDialogDescription>All check-ins, notes, saved emotions, and preferences on this device will be deleted.</AlertDialogDescription>
-              </AlertDialogHeader>
-              <div className="field">
-                <Label htmlFor="delete-confirmation">Type <code>{deletePhrase}</code> to confirm.</Label>
-                <Input id="delete-confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value)}
-                  autoComplete="off" autoCapitalize="none" spellCheck={false} disabled={deleting} />
-              </div>
-              {wipeError && <p role="alert">Couldn’t delete the data. Try again.</p>}
-              <AlertDialogFooter>
-                <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
-                <Button variant="destructive" disabled={deleting || confirmation !== deletePhrase} onClick={() => void wipe()}>
-                  {deleting ? 'Deleting…' : 'Delete permanently'}
-                </Button>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </Card>
+            )}
+          </Card>
+          <Card className="panel settings-panel">
+            <h2><SettingsTitle icon={Shield}>Your data</SettingsTitle></h2>
+            <p>Download your check-ins, saved emotions, and settings as JSON.</p>
+            <Button variant="outline" className="setting-action" onClick={() => void download()}><Download /> Export data</Button>
+            {exportError && <p role="alert">Couldn’t export your data. Try again.</p>}
+          </Card>
+          <Card className="panel settings-panel danger-panel">
+            <h2><SettingsTitle icon={Trash2}>Danger zone</SettingsTitle></h2>
+            <p>Permanently delete your check-ins, saved emotions, and settings from this device.</p>
+            <AlertDialog open={wipeOpen} onOpenChange={(open) => {
+              if (deleting) return
+              if (open) {
+                setConfirmation('')
+                setWipeError(false)
+              }
+              setWipeOpen(open)
+            }}>
+              <AlertDialogTrigger asChild><Button variant="destructive" className="setting-action">Delete all data</Button></AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Delete all data?</AlertDialogTitle>
+                  <AlertDialogDescription>All check-ins, notes, saved emotions, and preferences on this device will be deleted.</AlertDialogDescription>
+                </AlertDialogHeader>
+                <div className="field">
+                  <Label htmlFor="delete-confirmation">Type <code>{deletePhrase}</code> to confirm.</Label>
+                  <Input id="delete-confirmation" value={confirmation} onChange={(event) => setConfirmation(event.target.value)}
+                    autoComplete="off" autoCapitalize="none" spellCheck={false} disabled={deleting} />
+                </div>
+                {wipeError && <p role="alert">Couldn’t delete the data. Try again.</p>}
+                <AlertDialogFooter>
+                  <AlertDialogCancel disabled={deleting}>Cancel</AlertDialogCancel>
+                  <Button variant="destructive" disabled={deleting || confirmation !== deletePhrase} onClick={() => void wipe()}>
+                    {deleting ? 'Deleting…' : 'Delete permanently'}
+                  </Button>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          </Card>
+        </div>
       </div>
     </>
   )

@@ -157,6 +157,15 @@ export default function App() {
     return saved
   }
 
+  async function deleteEntry(id: string) {
+    const deleted = await mutate((current) => ({
+      ...current,
+      entries: current.entries.filter((entry) => entry.id !== id),
+    }))
+    if (deleted) setStatus('Check-in deleted.')
+    return deleted
+  }
+
   async function wipeJournal() {
     const wiped = await mutate(() => defaultJournal)
     if (wiped) {
@@ -193,11 +202,11 @@ export default function App() {
             <div className="hero-rings" aria-hidden><i /><i /><i /><i /><i /><i /></div>
             <div className="hero-copy">
               <h1>{journal?.settings.name.trim() ? `How are you feeling, ${journal.settings.name.trim()}?` : 'How are you feeling?'}</h1>
+              <time className="hero-date" dateTime={visibleDay}><CalendarDays size={15} aria-hidden /> <span>{journalDate}</span></time>
               <Button ref={logButton} className="log-button" disabled={!journal || readError}
                 onClick={() => setDraft({ day: visibleDay, id: (draft?.id ?? 0) + 1, open: true })}>
                 <Plus /> Log a mood
               </Button>
-              <time className="hero-date" dateTime={visibleDay}><CalendarDays size={15} aria-hidden /> <span>{journalDate}</span></time>
             </div>
           </section>
         )}
@@ -205,7 +214,8 @@ export default function App() {
           <p className="load-message" role="alert">Feel couldn’t open local storage. <Button variant="outline" onClick={() => location.reload()}>Try again</Button></p>
         ) : journal ? (
           <Suspense fallback={<p className="load-message" role="status">Loading…</p>}>
-            {page === 'journal' && <JournalView day={visibleDay} month={month} onDay={selectDate} onMonth={selectMonth} days={days} settings={journal.settings} today={today} />}
+            {page === 'journal' && <JournalView day={visibleDay} month={month} onDay={selectDate} onMonth={selectMonth} onDelete={deleteEntry}
+              days={days} settings={journal.settings} today={today} />}
             {page === 'insights' && <Insights journal={journal} today={today} />}
             {page === 'settings' && <SettingsView settings={journal.settings} onChange={editSettings} onWipe={wipeJournal} />}
           </Suspense>

@@ -33,7 +33,6 @@ export default function Insights({ journal, today }: { journal: Journal; today: 
   const dates = useMemo(() => yearDays(year), [year])
   const years = [...new Set([today.getFullYear(), ...journal.entries.map((entry) => Number(entry.day.slice(0, 4)))])].sort((a, b) => b - a)
   const offset = (dates[0].getDay() - journal.settings.weekStartsOn + 7) % 7
-  const columns = Math.ceil((offset + dates.length) / 7)
   const chartColor = selected?.color ?? 'var(--primary)'
   const cells = dates.map((date, index) => {
     const key = dateKey(date)
@@ -43,7 +42,8 @@ export default function Insights({ journal, today }: { journal: Journal; today: 
         if ((!emotionId || item.id === emotionId) && (!strongest || item.value > strongest.value)) strongest = item
       }
     }
-    return { key, date, column: 1 + Math.floor((index + offset) / 7), row: 1 + (index + offset) % 7, strongest }
+    const dayIndex = index + offset
+    return { key, date, column: 2 + dayIndex % 7, row: 1 + Math.floor(dayIndex / 7), strongest }
   })
   const checked = cells.find(({ key }) => key === inspected)
   const checkLabel = checked?.strongest && `${dateLabel.format(checked.date)} · ${checked.strongest.name} ${checked.strongest.value}/10`
@@ -60,7 +60,7 @@ export default function Insights({ journal, today }: { journal: Journal; today: 
           </NativeSelect>
         </div>
       </div>
-      <Card className="panel insight-panel trends-panel">
+      <Card className="panel insight-panel">
         <div className="insight-panel-head">
           <div>
             <p className="panel-kicker"><BarChart3 /> Trends</p>
@@ -100,12 +100,12 @@ export default function Insights({ journal, today }: { journal: Journal; today: 
           </NativeSelect>
         </div>
         <div className="mosaic-scroll" role="region" tabIndex={0} aria-label={`${year} daily mood mosaic`}>
-          <div className="mosaic-layout" style={{ gridTemplateColumns: `repeat(${columns}, minmax(10px, 1fr))` }}>
-            {cells.filter(({ date }) => date.getDate() === 1).map(({ key, column, date }) => (
-              <span aria-hidden className="mosaic-month" key={key} style={{ gridColumnStart: column, gridRowStart: 1 }}>{monthLabel.format(date)}</span>
+          <div className="mosaic-layout">
+            {cells.filter(({ date }) => date.getDate() === 1).map(({ key, row, date }) => (
+              <span aria-hidden className="mosaic-month" key={key} style={{ gridRowStart: row }}>{monthLabel.format(date)}</span>
             ))}
             {cells.map(({ key, date, column, row, strongest }) => {
-              const slot = { gridColumnStart: column, gridRowStart: row + 1 }
+              const slot = { gridColumnStart: column, gridRowStart: row }
               if (!strongest) return <span aria-hidden className="mosaic-tile" key={key} style={slot} title={dateLabel.format(date)} />
               const label = `${dateLabel.format(date)}: ${strongest.name} ${strongest.value}/10`
               return <Button key={key} variant="ghost" className="mosaic-tile mosaic-filled"
