@@ -1,24 +1,33 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { coreEmotions } from '../src/lib/emotions.ts'
-import { compassGrades, dateKey, grade, groupEntries, localTime, parseDay, trend, validGrades, yearDays } from '../src/lib/journal.ts'
+import { constellationGrades, dateKey, grade, groupEntries, localTime, parseDay, trend, validGrades, wheelGrades, yearDays } from '../src/lib/journal.ts'
 
-test('the compass grades Neutral at the center and one emotion at each corner', () => {
-  assert.deepEqual(compassGrades({ x: 0, y: 0 }).map(({ id, value }) => [id, value]), [['neutral', 0]])
-  const corners = [[-1, -1, 'joy'], [1, -1, 'anger'], [-1, 1, 'sadness'], [1, 1, 'fear']]
-  for (const [x, y, emotion] of corners) {
-    assert.deepEqual(compassGrades({ x, y }).map(({ id, value }) => [id, value]), [[emotion, 10]])
-  }
-  const edge = compassGrades({ x: 0, y: -1 })
-  assert.deepEqual(edge.map(({ id, value }) => [id, value]), [['joy', 10], ['anger', 10]])
-  assert.ok(validGrades(edge))
+test('the wheel grades Neutral at center, pure emotions on spokes, and 2-way blends at boundaries', () => {
+  assert.deepEqual(wheelGrades({ x: 0, y: 0 }).map(({ id, value }) => [id, value]), [['neutral', 0]])
+  const joyRad = (-30 * Math.PI) / 180
+  assert.deepEqual(wheelGrades({ x: Math.cos(joyRad) * 0.5, y: Math.sin(joyRad) * 0.5 }).map(({ id, value }) => [id, value]), [['joy', 5]])
+  // Boundary midway between Joy (-30°) and Calmness (30°) is 0°
+  const blend = wheelGrades({ x: 0.8, y: 0 })
+  assert.deepEqual(blend.map(({ id, value }) => [id, value]), [['joy', 8], ['calmness', 8]])
+  assert.ok(validGrades(blend))
+})
+
+test('the constellation grades Neutral, pure emotions, and intentional mixes', () => {
+  assert.deepEqual(constellationGrades({}, false), [])
+  assert.deepEqual(constellationGrades({}, true).map(({ id, value }) => [id, value]), [['neutral', 0]])
+  assert.deepEqual(constellationGrades({ joy: 5 }).map(({ id, value }) => [id, value]), [['joy', 5]])
+  const mixed = constellationGrades({ sadness: 4, joy: 8 })
+  assert.deepEqual(mixed.map(({ id, value }) => [id, value]), [['joy', 8], ['sadness', 4]])
+  assert.ok(validGrades(mixed))
 })
 
 test('a save needs at least one valid grade', () => {
   for (const value of [0, -1, 11, 1.1, NaN]) assert.equal(validGrades([grade(coreEmotions[0], value)]), false)
   assert.equal(validGrades([]), false)
   assert.ok(validGrades([grade(coreEmotions[0], 1), grade(coreEmotions[1], 10)]))
-  assert.ok(validGrades(compassGrades({ x: 0, y: 0 })))
+  assert.ok(validGrades(wheelGrades({ x: 0, y: 0 })))
+  assert.ok(validGrades(constellationGrades({}, true)))
 })
 
 test('date keys preserve local calendar days and leap years', () => {

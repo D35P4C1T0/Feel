@@ -1,5 +1,6 @@
-import { compassEmotions, emotionValue, neutralEmotion } from './emotions.ts'
+import { constellationEmotions, emotionValue, neutralEmotion, wheelEmotions } from './emotions.ts'
 import type { Emotion } from './emotions.ts'
+import type { Language } from './i18n.ts'
 
 export type Grade = Emotion & { value: number }
 export type Entry = {
@@ -16,6 +17,7 @@ export type Settings = {
   name: string
   color: string
   darkMode?: boolean
+  language?: Language
   weekStartsOn: 0 | 1 | 2 | 3 | 4 | 5 | 6
   layout: { id: Section; visible: boolean }[]
   reminder: { enabled: boolean; time: string; message: string; lastDay?: string }
@@ -29,6 +31,7 @@ export const defaultJournal: Journal = {
     name: '',
     color: '#b6584f',
     darkMode: false,
+    language: 'it',
     weekStartsOn: 1,
     layout: [{ id: 'calendar', visible: true }, { id: 'entries', visible: true }],
     reminder: { enabled: false, time: '20:00', message: 'Take a moment to check in with yourself.' },
@@ -55,9 +58,9 @@ export function localTime(date: Date) {
   return [date.getHours(), date.getMinutes()].map((part) => String(part).padStart(2, '0')).join(':')
 }
 
-export function displayTime(time: string) {
+export function displayTime(time: string, locale?: string) {
   const [hours, minutes] = time.split(':').map(Number)
-  return new Intl.DateTimeFormat(undefined, { hour: 'numeric', minute: '2-digit' })
+  return new Intl.DateTimeFormat(locale, { hour: 'numeric', minute: '2-digit' })
     .format(new Date(2000, 0, 1, hours, minutes))
 }
 
@@ -65,14 +68,45 @@ export function grade(emotion: Emotion, value: number): Grade {
   return { ...emotionValue(emotion), value }
 }
 
-export function compassGrades({ x, y }: NonNullable<Entry['point']>): Grade[] {
-  const strength = Math.max(Math.abs(x), Math.abs(y)) * 10
-  if (strength < 0.5) return [grade(neutralEmotion, 0)]
-  const weights = [(1 - x) * (1 - y), (1 + x) * (1 - y), (1 - x) * (1 + y), (1 + x) * (1 + y)]
-  const largest = Math.max(...weights)
-  return compassEmotions
-    .map((emotion, index) => grade(emotion, Math.round(strength * weights[index] / largest)))
-    .filter(({ value }) => value > 0)
+export function wheelGrades({ x, y }: NonNullable<Entry['point']>): Grade[] {
+  const radius = Math.min(1, Math.hypot(x, y))
+  const intensity = Math.round(radius * 10)
+  if (intensity < 1) return [grade(neutralEmotion, 0)]
+  const deg = (Math.atan2(y, x) * 180) / Math.PI
+  const sector = 360 / wheelEmotions.length
+  const rel = ((deg + 30) % 360 + 360) % 360
+  const index = Math.floor(rel / sector)
+  const frac = (rel % sector) / sector
+  const first = wheelEmotions[index % wheelEmotions.length]
+  const second = wheelEmotions[(index + 1) % wheelEmotions.length]
+  let w1 = 1
+  let w2 = 0
+  if (frac >= 0.75) {
+    w1 = 0
+    w2 = 1
+  } else if (frac > 0.25) {
+    const t = (frac - 0.25) / 0.5
+    const c = Math.cos((t * Math.PI) / 2)
+    const s = Math.sin((t * Math.PI) / 2)
+    const maxW = Math.max(c, s)
+    w1 = c / maxW
+    w2 = s / maxW
+  }
+  const result: Grade[] = []
+  const v1 = Math.round(intensity * w1)
+  const v2 = Math.round(intensity * w2)
+  if (v1 > 0) result.push(grade(first, v1))
+  if (v2 > 0) result.push(grade(second, v2))
+  return result.sort((a, b) => b.value - a.value)
+}
+
+export function constellationGrades(values: Record<string, number>, neutral = false): Grade[] {
+  if (neutral) return [grade(neutralEmotion, 0)]
+  return constellationEmotions
+    .flatMap((emotion) => {
+      const value = values[emotion.id]
+      return value ? [grade(emotion, Math.max(1, Math.min(10, Math.round(value))))] : []
+    })
     .sort((a, b) => b.value - a.value)
 }
 
@@ -101,7 +135,7 @@ export const periods = [
 ] as const
 export type Period = typeof periods[number]['id']
 
-export function trend(entries: Entry[], period: Period, emotionId: string, now: Date, weekStartsOn: number) {
+export function trend(entries: Entry[], period: Period, emotionId: string, now: Date, weekStartsOn: number, locale?: string) {
   const year = now.getFullYear()
   const month = now.getMonth()
   const weekStart = shiftDays(now, -(now.getDay() - weekStartsOn + 7) % 7)
@@ -111,7 +145,7 @@ export function trend(entries: Entry[], period: Period, emotionId: string, now: 
   const buckets = new Map<string, { label: string; sum: number; count: number }>()
 
   for (let date = start; date < end; date = months ? new Date(date.getFullYear(), date.getMonth() + 1, 1) : shiftDays(date, 1)) {
-    const label = new Intl.DateTimeFormat(undefined, months ? { month: 'short' } : period === 'week'
+    const label = new Intl.DateTimeFormat(locale, months ? { month: 'short' } : period === 'week'
       ? { weekday: 'short' } : { day: 'numeric' }).format(date)
     buckets.set(dateKey(date).slice(0, months ? 7 : 10), { label, sum: 0, count: 0 })
   }

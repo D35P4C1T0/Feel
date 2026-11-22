@@ -53,7 +53,28 @@ export const complexEmotions = [
 ]
 
 export const neutralEmotion = emotion('neutral', 'Neutral', '#82776f', Cloud)
-export const compassEmotions = [coreEmotions[0], coreEmotions[2], coreEmotions[1], coreEmotions[3]]
+export const wheelEmotions = [
+  coreEmotions[0],  // Joy (-30°)
+  coreEmotions[11], // Calmness (30°)
+  coreEmotions[1],  // Sadness (90°)
+  coreEmotions[3],  // Fear (150°)
+  coreEmotions[2],  // Anger (210°)
+  coreEmotions[5],  // Surprise (270°)
+]
+export const constellationEmotions = [
+  coreEmotions[5],  // Surprise (-90°)
+  coreEmotions[7],  // Anticipation (-60°)
+  coreEmotions[0],  // Joy (-30°)
+  coreEmotions[6],  // Trust (0°)
+  coreEmotions[11], // Calmness (30°)
+  coreEmotions[8],  // Attachment (60°)
+  coreEmotions[9],  // Desire (90°)
+  coreEmotions[1],  // Sadness (120°)
+  coreEmotions[3],  // Fear (150°)
+  coreEmotions[4],  // Disgust (180°)
+  coreEmotions[2],  // Anger (210°)
+  coreEmotions[10], // Curiosity (240°)
+]
 const icons = new Map([...coreEmotions, ...complexEmotions, neutralEmotion].map(({ id, icon }) => [id, icon]))
 
 export function emotionIcon(id: string) {
@@ -69,8 +90,7 @@ export function emotionValue({ id, name, color }: Emotion): Emotion {
 }
 
 export const entryModes = [
-  { id: 'compass', label: 'Compass', icon: Compass },
-  { id: 'single', label: 'Single', icon: Heart },
+  { id: 'wheel', label: 'Wheel', icon: Compass },
   { id: 'custom', label: 'Custom', icon: Blend },
   { id: 'complex', label: 'Complex', icon: Sparkles },
 ] as const

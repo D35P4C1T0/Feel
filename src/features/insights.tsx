@@ -1,4 +1,5 @@
 import { useMemo, useState } from 'react'
+import type { CSSProperties } from 'react'
 import { BarChart3, Grid3X3 } from 'lucide-react'
 import { Bar, BarChart, CartesianGrid, XAxis, YAxis } from 'recharts'
 import { Button } from '@/components/ui/button'
@@ -8,13 +9,16 @@ import { Label } from '@/components/ui/label'
 import { NativeSelect, NativeSelectOption } from '@/components/ui/native-select'
 import { coreEmotions, complexEmotions, emotionStyle, neutralEmotion } from '@/lib/emotions'
 import type { Emotion } from '@/lib/emotions'
+import { emotionLabel, getMessages, localeOf } from '@/lib/i18n'
+import type { Language } from '@/lib/i18n'
 import { dateKey, groupEntries, parseDay, periods, trend, yearDays } from '@/lib/journal'
 import type { Grade, Journal, Period } from '@/lib/journal'
 
-const dateLabel = new Intl.DateTimeFormat(undefined, { month: 'short', day: 'numeric', year: 'numeric' })
-const monthLabel = new Intl.DateTimeFormat(undefined, { month: 'short' })
-
-export default function Insights({ journal, today }: { journal: Journal; today: Date }) {
+export default function Insights({ journal, today, language }: { journal: Journal; today: Date; language: Language }) {
+  const t = getMessages(language).insights
+  const locale = localeOf(language)
+  const dateLabel = useMemo(() => new Intl.DateTimeFormat(locale, { month: 'short', day: 'numeric', year: 'numeric' }), [locale])
+  const monthLabel = useMemo(() => new Intl.DateTimeFormat(locale, { month: 'short' }), [locale])
   const [period, setPeriod] = useState<Period>('week')
   const [emotionId, setEmotionId] = useState('')
   const [year, setYear] = useState(today.getFullYear())
@@ -28,7 +32,7 @@ export default function Insights({ journal, today }: { journal: Journal; today: 
     return byId
   }, [journal])
   const selected = catalog.get(emotionId)
-  const progression = trend(journal.entries, period, emotionId, today, journal.settings.weekStartsOn)
+  const progression = trend(journal.entries, period, emotionId, today, journal.settings.weekStartsOn, locale)
   const days = useMemo(() => groupEntries(journal.entries), [journal.entries])
   const dates = useMemo(() => yearDays(year), [year])
   const years = [...new Set([today.getFullYear(), ...journal.entries.map((entry) => Number(entry.day.slice(0, 4)))])].sort((a, b) => b - a)
@@ -43,37 +47,39 @@ export default function Insights({ journal, today }: { journal: Journal; today: 
       }
     }
     const dayIndex = index + offset
-    return { key, date, column: 2 + dayIndex % 7, row: 1 + Math.floor(dayIndex / 7), strongest }
+    return { key, date, day: dayIndex % 7, week: Math.floor(dayIndex / 7), strongest }
   })
   const checked = cells.find(({ key }) => key === inspected)
-  const checkLabel = checked?.strongest && `${dateLabel.format(checked.date)} · ${checked.strongest.name} ${checked.strongest.value}/10`
+  const checkLabel = checked?.strongest && `${dateLabel.format(checked.date)} · ${emotionLabel(checked.strongest, language)} ${checked.strongest.value}/10`
 
   return (
     <>
       <div className="page-heading">
-        <h1>Insights</h1>
+        <h1>{t.title}</h1>
         <div className="inline-field">
-          <Label htmlFor="emotion-filter">Emotion</Label>
+          <Label htmlFor="emotion-filter">{t.emotion}</Label>
           <NativeSelect id="emotion-filter" value={emotionId} onChange={(event) => { setEmotionId(event.target.value); setInspected('') }}>
-            <NativeSelectOption value="">All emotions</NativeSelectOption>
-            {[...catalog.values()].map(({ id, name }) => <NativeSelectOption key={id} value={id}>{name}</NativeSelectOption>)}
+            <NativeSelectOption value="">{t.allEmotions}</NativeSelectOption>
+            {[...catalog.values()].map((emotion) => (
+              <NativeSelectOption key={emotion.id} value={emotion.id}>{emotionLabel(emotion, language)}</NativeSelectOption>
+            ))}
           </NativeSelect>
         </div>
       </div>
       <Card className="panel insight-panel">
         <div className="insight-panel-head">
           <div>
-            <p className="panel-kicker"><BarChart3 /> Trends</p>
-            <h2>Average intensity</h2>
+            <p className="panel-kicker"><BarChart3 /> {t.trends}</p>
+            <h2>{t.averageIntensity}</h2>
           </div>
-          <div role="group" aria-label="Time range" className="period-control">
-            {periods.map(({ id, label }) => (
-              <Button key={id} variant="ghost" aria-pressed={period === id} onClick={() => setPeriod(id)}>{label}</Button>
+          <div role="group" aria-label={t.timeRangeAria} className="period-control">
+            {periods.map(({ id }) => (
+              <Button key={id} variant="ghost" aria-pressed={period === id} onClick={() => setPeriod(id)}>{t.periods[id]}</Button>
             ))}
           </div>
         </div>
         {progression.some(({ value }) => value !== null) ? (
-          <ChartContainer className="mood-chart" config={{ value: { label: 'Average intensity', color: chartColor } }}>
+          <ChartContainer className="mood-chart" config={{ value: { label: t.averageIntensity, color: chartColor } }}>
             <BarChart accessibilityLayer data={progression} margin={{ left: -24, right: 4, top: 8 }} barCategoryGap="30%">
               <CartesianGrid vertical={false} />
               <XAxis dataKey="label" tickLine={false} axisLine={false} tickMargin={10} interval={period === 'month' ? 4 : 'preserveStartEnd'} />
@@ -81,33 +87,33 @@ export default function Insights({ journal, today }: { journal: Journal; today: 
               <ChartTooltip content={
                 <ChartTooltipContent hideLabel={false} labelFormatter={(_, payload) => {
                   const day = payload[0]?.payload.day as string | undefined
-                  return day ? day.length === 7 ? parseDay(`${day}-01`).toLocaleDateString(undefined, { month: 'long', year: 'numeric' }) : dateLabel.format(parseDay(day)) : ''
+                  return day ? day.length === 7 ? parseDay(`${day}-01`).toLocaleDateString(locale, { month: 'long', year: 'numeric' }) : dateLabel.format(parseDay(day)) : ''
                 }} />
               } />
               <Bar dataKey="value" fill="var(--color-value)" radius={[5, 5, 0, 0]} maxBarSize={44} minPointSize={2} />
             </BarChart>
           </ChartContainer>
-        ) : <p className="insight-empty">No grades in this time range.</p>}
+        ) : <p className="insight-empty">{t.noGrades}</p>}
       </Card>
       <Card className="panel insight-panel" style={emotionStyle(chartColor)}>
         <div className="insight-panel-head">
           <div>
-            <p className="panel-kicker"><Grid3X3 /> Mood mosaic</p>
-            <h2>A year in color</h2>
+            <p className="panel-kicker"><Grid3X3 /> {t.moodMosaic}</p>
+            <h2>{t.yearInColor}</h2>
           </div>
-          <NativeSelect aria-label="Mosaic year" value={year} onChange={(event) => { setYear(Number(event.target.value)); setInspected('') }}>
+          <NativeSelect aria-label={t.mosaicYearAria} value={year} onChange={(event) => { setYear(Number(event.target.value)); setInspected('') }}>
             {years.map((value) => <NativeSelectOption key={value}>{value}</NativeSelectOption>)}
           </NativeSelect>
         </div>
-        <div className="mosaic-scroll" role="region" tabIndex={0} aria-label={`${year} daily mood mosaic`}>
+        <div className="mosaic-scroll" role="region" tabIndex={0} aria-label={t.mosaicRegionAria(year)}>
           <div className="mosaic-layout">
-            {cells.filter(({ date }) => date.getDate() === 1).map(({ key, row, date }) => (
-              <span aria-hidden className="mosaic-month" key={key} style={{ gridRowStart: row }}>{monthLabel.format(date)}</span>
+            {cells.filter(({ date }) => date.getDate() === 1).map(({ key, week, date }) => (
+              <span aria-hidden className="mosaic-month" key={key} style={{ '--week': week } as CSSProperties}>{monthLabel.format(date)}</span>
             ))}
-            {cells.map(({ key, date, column, row, strongest }) => {
-              const slot = { gridColumnStart: column, gridRowStart: row }
+            {cells.map(({ key, date, day, week, strongest }) => {
+              const slot = { '--day': day, '--week': week } as CSSProperties
               if (!strongest) return <span aria-hidden className="mosaic-tile" key={key} style={slot} title={dateLabel.format(date)} />
-              const label = `${dateLabel.format(date)}: ${strongest.name} ${strongest.value}/10`
+              const label = `${dateLabel.format(date)}: ${emotionLabel(strongest, language)} ${strongest.value}/10`
               return <Button key={key} variant="ghost" className="mosaic-tile mosaic-filled"
                 aria-label={label} aria-pressed={inspected === key} title={label} onClick={() => setInspected(key)}
                 style={{ ...slot, backgroundColor: `color-mix(in srgb, ${strongest.color} ${20 + 8 * strongest.value}%, var(--muted))` }} />
@@ -115,8 +121,8 @@ export default function Insights({ journal, today }: { journal: Journal; today: 
           </div>
         </div>
         <div className="mosaic-footer">
-          <p aria-live="polite">{checkLabel || 'Each tile shows the day’s highest recorded grade.'}</p>
-          <span className="mosaic-legend">Low <i /><i /><i /><i /> High</span>
+          <p aria-live="polite">{checkLabel || t.mosaicHint}</p>
+          <span className="mosaic-legend">{t.low} <i /><i /><i /><i /> {t.high}</span>
         </div>
       </Card>
     </>

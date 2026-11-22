@@ -5,15 +5,17 @@ import { JournalView } from '@/features/journal-view'
 import { dateKey, defaultJournal, groupEntries, localTime, parseDay } from '@/lib/journal'
 import type { Entry, Journal, Settings } from '@/lib/journal'
 import type { Emotion } from '@/lib/emotions'
+import { getMessages, localeOf } from '@/lib/i18n'
+import type { Language } from '@/lib/i18n'
 import { readJournal, writeJournal } from '@/lib/storage'
 
 const Composer = lazy(() => import('@/features/composer'))
 const Insights = lazy(() => import('@/features/insights'))
 const SettingsView = lazy(() => import('@/features/settings'))
 const navigation = [
-  { page: 'journal', label: 'Journal', icon: CalendarDays },
-  { page: 'insights', label: 'Insights', icon: ChartNoAxesCombined },
-  { page: 'settings', label: 'Settings', icon: Settings2 },
+  { page: 'journal', icon: CalendarDays },
+  { page: 'insights', icon: ChartNoAxesCombined },
+  { page: 'settings', icon: Settings2 },
 ] as const
 
 function subscribeRoute(listener: () => void) {
@@ -42,7 +44,14 @@ export default function App() {
   const days = useMemo(() => groupEntries(journal?.entries ?? []), [journal?.entries])
   const color = journal?.settings.color ?? defaultJournal.settings.color
   const darkMode = journal?.settings.darkMode ?? false
+  const language: Language = journal?.settings.language ?? defaultJournal.settings.language ?? 'it'
+  const t = getMessages(language)
+  const locale = localeOf(language)
   const reminderSettings = journal?.settings.reminder
+
+  useEffect(() => {
+    document.documentElement.lang = language
+  }, [language])
 
   useEffect(() => {
     let active = true
@@ -70,10 +79,10 @@ export default function App() {
       return
     }
     void import('@/lib/theme').then(({ applyTheme }) => { if (active) applyTheme(color, darkMode) }).catch(() => {
-      if (active) setStatus('Couldn’t load the theme color.')
+      if (active) setStatus(getMessages(language).status.themeError)
     })
     return () => { active = false }
-  }, [color, darkMode])
+  }, [color, darkMode, language])
 
   useEffect(() => {
     window.scrollTo(0, 0)
@@ -91,10 +100,10 @@ export default function App() {
       channel.current?.postMessage('updated')
       return true
     } catch {
-      setStatus('Couldn’t save changes on this device.')
+      setStatus(getMessages(language).status.saveError)
       return false
     }
-  }, [])
+  }, [language])
 
   useEffect(() => {
     let pending = false
@@ -108,7 +117,7 @@ export default function App() {
       const saved = await mutate((current) => {
         const settings = current.settings.reminder
         if (!settings.enabled || settings.lastDay === key || localTime(date) < settings.time) return current
-        message = settings.message.trim() || defaultJournal.settings.reminder.message
+        message = settings.message.trim() || getMessages(current.settings.language ?? 'it').status.defaultReminder
         return { ...current, settings: { ...current.settings, reminder: { ...settings, lastDay: key } } }
       })
       pending = false
@@ -153,7 +162,10 @@ export default function App() {
       entries: [...current.entries, entry],
       emotions: emotion && !current.emotions.some(({ id }) => id === emotion.id) ? [...current.emotions, emotion] : current.emotions,
     }))
-    if (saved) setStatus('Check-in saved.')
+    if (saved) {
+      selectDate(parseDay(entry.day))
+      setStatus(t.status.saved)
+    }
     return saved
   }
 
@@ -162,35 +174,35 @@ export default function App() {
       ...current,
       entries: current.entries.filter((entry) => entry.id !== id),
     }))
-    if (deleted) setStatus('Check-in deleted.')
+    if (deleted) setStatus(t.status.deleted)
     return deleted
   }
 
   async function wipeJournal() {
-    const wiped = await mutate(() => defaultJournal)
+    const wiped = await mutate(() => ({ ...defaultJournal, settings: { ...defaultJournal.settings, language } }))
     if (wiped) {
       setReminder('')
       selectDate(today)
-      setStatus('Data deleted.')
+      setStatus(t.status.wiped)
     }
     return wiped
   }
 
   const canSeeCalendar = journal?.settings.layout.some(({ id, visible }) => id === 'calendar' && visible)
   const visibleDay = canSeeCalendar ? day : todayKey
-  const journalDate = parseDay(visibleDay).toLocaleDateString(undefined, { weekday: 'long', month: 'long', day: 'numeric' })
+  const journalDate = parseDay(visibleDay).toLocaleDateString(locale, { weekday: 'long', month: 'long', day: 'numeric' })
 
   return (
     <div className="app-shell">
       <header className="app-header">
         <div className="header-inner">
-          <a className="brand" href="#journal" aria-label="Feel journal">
+          <a className="brand" href="#journal" aria-label={t.nav.brandAria}>
             <span><AudioLines size={22} /></span> feel<span className="brand-period">.</span>
           </a>
-          <nav className="main-nav" aria-label="Main navigation">
-            {navigation.map(({ page: id, label, icon: Icon }) => (
+          <nav className="main-nav" aria-label={t.nav.ariaLabel}>
+            {navigation.map(({ page: id, icon: Icon }) => (
               <Button key={id} asChild variant="ghost" className="nav-link">
-                <a href={`#${id}`} aria-current={page === id ? 'page' : undefined}><Icon />{label}</a>
+                <a href={`#${id}`} aria-current={page === id ? 'page' : undefined}><Icon />{t.nav[id]}</a>
               </Button>
             ))}
           </nav>
@@ -201,37 +213,38 @@ export default function App() {
           <section className="journal-hero">
             <div className="hero-rings" aria-hidden><i /><i /><i /><i /><i /><i /></div>
             <div className="hero-copy">
-              <h1>{journal?.settings.name.trim() ? `How are you feeling, ${journal.settings.name.trim()}?` : 'How are you feeling?'}</h1>
+              <h1>{journal?.settings.name.trim() ? t.hero.greetingNamed(journal.settings.name.trim()) : t.hero.greeting}</h1>
               <time className="hero-date" dateTime={visibleDay}><CalendarDays size={15} aria-hidden /> <span>{journalDate}</span></time>
               <Button ref={logButton} className="log-button" disabled={!journal || readError}
                 onClick={() => setDraft({ day: visibleDay, id: (draft?.id ?? 0) + 1, open: true })}>
-                <Plus /> Log a mood
+                <Plus /> {t.hero.logMood}
               </Button>
             </div>
           </section>
         )}
         {readError ? (
-          <p className="load-message" role="alert">Feel couldn’t open local storage. <Button variant="outline" onClick={() => location.reload()}>Try again</Button></p>
+          <p className="load-message" role="alert">{t.status.storageError} <Button variant="outline" onClick={() => location.reload()}>{t.status.tryAgain}</Button></p>
         ) : journal ? (
-          <Suspense fallback={<p className="load-message" role="status">Loading…</p>}>
+          <Suspense fallback={<p className="load-message" role="status">{t.status.loading}</p>}>
             {page === 'journal' && <JournalView day={visibleDay} month={month} onDay={selectDate} onMonth={selectMonth} onDelete={deleteEntry}
-              days={days} settings={journal.settings} today={today} />}
-            {page === 'insights' && <Insights journal={journal} today={today} />}
-            {page === 'settings' && <SettingsView settings={journal.settings} onChange={editSettings} onWipe={wipeJournal} />}
+              onLog={() => setDraft({ day: visibleDay, id: (draft?.id ?? 0) + 1, open: true })}
+              days={days} settings={journal.settings} today={today} language={language} />}
+            {page === 'insights' && <Insights journal={journal} today={today} language={language} />}
+            {page === 'settings' && <SettingsView settings={journal.settings} onChange={editSettings} onWipe={wipeJournal} language={language} />}
           </Suspense>
-        ) : <p className="load-message" role="status">Opening your journal…</p>}
+        ) : <p className="load-message" role="status">{t.status.opening}</p>}
       </main>
       {draft && journal && (
         <Suspense fallback={null}>
           <Composer key={draft.id} day={draft.day} open={draft.open} savedEmotions={journal.emotions} onSave={saveEntry}
-            onOpenChange={(open) => setDraft({ ...draft, open })} onCloseFocus={() => logButton.current?.focus()} />
+            onOpenChange={(open) => setDraft({ ...draft, open })} onCloseFocus={() => logButton.current?.focus()} language={language} />
         </Suspense>
       )}
       {status && <div className="app-status" role="status">{status}</div>}
       {reminder && (
         <div className="reminder-toast" role="status">
           <Bell size={18} /> <p>{reminder}</p>
-          <Button variant="ghost" size="icon-lg" aria-label="Dismiss reminder" onClick={() => setReminder('')}><X /></Button>
+          <Button variant="ghost" size="icon-lg" aria-label={t.status.dismissReminder} onClick={() => setReminder('')}><X /></Button>
         </div>
       )}
     </div>
