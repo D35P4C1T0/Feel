@@ -7,6 +7,7 @@ import type { Entry, Journal, Settings } from '@/lib/journal'
 import type { Emotion } from '@/lib/emotions'
 import { getMessages, localeOf } from '@/lib/i18n'
 import type { Language } from '@/lib/i18n'
+import { boostScrollRefreshRate } from '@/lib/scroll-refresh'
 import { readJournal, writeJournal } from '@/lib/storage'
 
 const Composer = lazy(() => import('@/features/composer'))
@@ -87,6 +88,8 @@ export default function App() {
   useEffect(() => {
     window.scrollTo(0, 0)
   }, [page])
+
+  useEffect(boostScrollRefreshRate, [])
 
   useEffect(() => {
     if (!status) return

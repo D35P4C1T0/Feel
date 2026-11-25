@@ -98,6 +98,26 @@
 }
 
 .app-shell { min-height: 100svh; }
+.scroll-refresh-boost {
+  position: fixed;
+  inset: 0 auto auto 0;
+  z-index: 60;
+  pointer-events: none;
+}
+.scroll-refresh-boost > div { width: 8px; height: 8px; overflow: scroll; scrollbar-width: none; }
+.scroll-refresh-boost > div::-webkit-scrollbar { display: none; }
+.scroll-refresh-boost > div::before { content: ''; display: block; height: 400px; visibility: hidden; }
+.scroll-refresh-boost::after {
+  content: '';
+  position: absolute;
+  inset: 0 auto auto 0;
+  width: 1px;
+  height: 1px;
+  background: color-mix(in srgb, currentColor 1%, transparent);
+  animation: scroll-refresh-boost 1s linear infinite;
+}
+@keyframes scroll-refresh-boost { to { transform: translateX(1px); } }
+
 .app-header {
   border-bottom: 1px solid var(--border);
   background: var(--card);
